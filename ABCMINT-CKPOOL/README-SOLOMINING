@@ -32,7 +32,7 @@ sI7jIjC61U9ZYTT29GnBpm0Rg1qQV9w_TXOfBF1vOM8
 编辑abcmint.conf，启用RPC（远程过程调用）并添加上面的rpcauth行。以下配置将允许ABCMINT-CKPOOL与运行在相同硬件上的abcmint守护进程通信：
 
 server=1
-rpcauth=ckpool:c6f55b4a74b8fcbca4e8b2be22d7d53b$e2ca5e642d7ef4f43ab2524964dc6b3625ccfde09a97866c5b97c40622192149
+rpcuser=yourrpcuser
 rpcallowip=127.0.0.1
 rpcbind=127.0.0.1
 zmqpubhashblock=tcp://127.0.0.1:28882
@@ -44,7 +44,7 @@ zmqpubhashblock=tcp://127.0.0.1:28882
 {"abcmintd" :  [
         {
         "url" : "127.0.0.1:8882",
-        "auth" : "ckpool",
+        "user" : "ckpool",
         "pass" : "sI7jIjC61U9ZYTT29GnBpm0Rg1qQV9w_TXOfBF1vOM8",
         "notify" : true
         }

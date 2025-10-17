@@ -14,10 +14,10 @@ ABCMINTD和独立挖矿下载与快速入门：
 
 wget https://github.com/ErwinSchrodbit/abcmint-ckpool-beta0.0.1.git
 
-chmod +x install-ckpool-solo.sh
+chmod +x scripts/install-ckpool-solo.sh
 
-# 注意：安装脚本需要修改以适配abcmint
-# sudo ./install-ckpool-solo.sh
+# 注意：安装脚本已适配abcmint
+# sudo ./scripts/install-ckpool-solo.sh
 
 ---
 设计：
@@ -265,4 +265,3 @@ ABCMINT特殊配置说明：
 6. 起始难度：为适配rainbow18算法，建议将startdiff设置为100。
 
 7. 不支持Segwit：abcmint不使用Segwit，相关功能已在代码中禁用。
-

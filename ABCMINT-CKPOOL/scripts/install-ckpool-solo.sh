@@ -38,7 +38,7 @@ fi
 
 # Detect previous installation
 PREVIOUS_INSTALL=false
-if [ -f /etc/systemd/system/bitcoind.service ] || [ -f /etc/systemd/system/ckpool.service ] || [ -d /opt/ckpool ] || [ -d /etc/ckpool ] || [ -d /var/log/ckpool ] || [ -f /usr/local/bin/wait-for-bitcoind-sync.sh ]; then
+if [ -f /etc/systemd/system/abcmintd.service ] || [ -f /etc/systemd/system/ckpool.service ] || [ -d /opt/ckpool ] || [ -d /etc/ckpool ] || [ -d /var/log/ckpool ] || [ -f /usr/local/bin/wait-for-abcmintd-sync.sh ]; then
     PREVIOUS_INSTALL=true
 fi
 
@@ -51,26 +51,26 @@ if $PREVIOUS_INSTALL; then
     echo "Overwriting previous installation..."
     # Stop and disable services if they exist
     systemctl stop ckpool 2>/dev/null || true
-    systemctl stop bitcoind 2>/dev/null || true
+    systemctl stop abcmintd 2>/dev/null || true
     systemctl disable ckpool 2>/dev/null || true
-    systemctl disable bitcoind 2>/dev/null || true
+    systemctl disable abcmintd 2>/dev/null || true
     # Remove old files
-    rm -f /etc/systemd/system/ckpool.service /etc/systemd/system/bitcoind.service
+    rm -f /etc/systemd/system/ckpool.service /etc/systemd/system/abcmintd.service
     rm -rf /opt/ckpool /etc/ckpool /var/log/ckpool
-    rm -f /usr/local/bin/wait-for-bitcoind-sync.sh
+    rm -f /usr/local/bin/wait-for-abcmintd-sync.sh
     # Reload systemd
     systemctl daemon-reload
 fi
 
 # Main installation
-echo "Starting installation of Bitcoin Core v29.0 and CKPool-Solo. This requires sudo privileges."
-echo "Warning: Bitcoin Core will download up to ~675GB of blockchain data (or less if pruned). Ensure sufficient disk space."
-echo "Important: You cannot mine with CKPool-Solo until the Bitcoin Core blockchain is fully synchronized, which may take days depending on your hardware and network speed."
+echo "Starting installation of ABCMINT and ABCMINT-CKPOOL. This requires sudo privileges."
+echo "Warning: ABCMINT will download blockchain data. Ensure sufficient disk space."
+echo "Important: You cannot mine with ABCMINT-CKPOOL until the ABCMINT blockchain is fully synchronized."
 
 # Prompt for service user (default to current sudo user)
 current_user=${SUDO_USER:-root}
-echo "Optionally, choose a user to run Bitcoin Core and CKPool as (instead of $current_user)."
-echo "Any existing blockchain data in the user's .bitcoin directory will be used."
+echo "Optionally, choose a user to run ABCMINT and CKPool as (instead of $current_user)."
+echo "Any existing blockchain data in the user's .abcmint directory will be used."
 read -p "Enter existing username, or 'create' to make a new 'ckpool' user (leave blank for $current_user): " input_user
 if [ "$input_user" = "create" ]; then
     useradd -m -s /bin/bash ckpool
@@ -92,8 +92,8 @@ else
 fi
 
 # Prompt for max disk space
-echo "Bitcoin blockchain full size is approximately 675 GB as of August 2025."
-read -p "Enter maximum disk space for Bitcoin data in GB (0 for full chain, default: 0): " max_gb
+echo "ABCMINT blockchain size information will be displayed during sync."
+read -p "Enter maximum disk space for ABCMINT data in GB (0 for full chain, default: 0): " max_gb
 if [ -z "$max_gb" ]; then max_gb=0; fi
 if [ "$max_gb" -eq 0 ]; then
     prune_line=""
@@ -166,43 +166,38 @@ echo "Enabling persistent journal storage for easier log access..."
 mkdir -p /var/log/journal
 systemd-tmpfiles --create --prefix /var/log/journal 2>/dev/null || true
 
-# Download and verify Bitcoin Core v29.0 tarball
-BITCOIN_VERSION="29.0"
-ARCH=$(uname -m)
-if [ "$ARCH" = "x86_64" ]; then
-    BITCOIN_TAR="bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"
-elif [ "$ARCH" = "aarch64" ]; then
-    BITCOIN_TAR="bitcoin-${BITCOIN_VERSION}-aarch64-linux-gnu.tar.gz"
+# Clone abcmint-master from the current directory
+if [ -d "$HOME_DIR/abcmint-master" ]; then
+    echo "Using existing abcmint-master directory."
 else
-    echo "Unsupported architecture: $ARCH. Exiting."
-    exit 1
+    echo "Cloning abcmint-master from current directory..."
+    cp -r "c:/Users/mark/Desktop/abcmint-master-pool/abcmint-master" "$HOME_DIR/abcmint-master"
 fi
-BASE_URL="https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}"
-curl -O ${BASE_URL}/${BITCOIN_TAR}
-curl -O ${BASE_URL}/SHA256SUMS
-curl -O ${BASE_URL}/SHA256SUMS.asc
 
-# Import Bitcoin Core builder GPG keys
-git clone https://github.com/bitcoin-core/guix.sigs -b main --depth 1 /tmp/guix.sigs
-gpg --import /tmp/guix.sigs/builder-keys/* || true
-rm -rf /tmp/guix.sigs
-
-# Verify hash and signature
-sha256sum --ignore-missing --check SHA256SUMS || { echo "Hash verification failed. Exiting."; exit 1; }
-gpg --verify SHA256SUMS.asc || { echo "Signature verification failed. Exiting."; exit 1; }
-
-# Extract tarball
-tar -zxvf ${BITCOIN_TAR}
+# Build abcmintd
+echo "Building abcmintd..."
+cd "$HOME_DIR/abcmint-master"
+./autogen.sh
+./configure
+make -j$(nproc)
 
 # Generate rpcauth using included script
-cd bitcoin-${BITCOIN_VERSION}
-rpc_output=$(python3 ./share/rpcauth/rpcauth.py ckpooluser)
-rpcauth_line=$(echo "$rpc_output" | grep '^rpcauth=')
-rpc_password=$(echo "$rpc_output" | tail -1 | sed 's/Your password://' | tr -d '[:space:]')
-cd ..
+if [ -f "./share/rpcauth/rpcauth.py" ]; then
+    rpc_output=$(python3 ./share/rpcauth/rpcauth.py ckpooluser)
+else
+    # Fallback to basic authentication if rpcauth.py doesn't exist
+    rpc_password=$(openssl rand -hex 32)
+    rpcauth_line="rpcuser=ckpooluser\nrpcpassword=$rpc_password"
+fi
+# Extract rpc password and auth line
+if [ -z "$rpcauth_line" ]; then
+    rpcauth_line=$(echo "$rpc_output" | grep '^rpcauth=')
+    rpc_password=$(echo "$rpc_output" | tail -1 | sed 's/Your password://' | tr -d '[:space:]')
+fi
 
-cp -r bitcoin-${BITCOIN_VERSION}/bin/* /usr/local/bin/
-rm -rf bitcoin-${BITCOIN_VERSION} ${BITCOIN_TAR} SHA256SUMS SHA256SUMS.asc
+# Install abcmint binaries
+cp -r src/abcmintd src/abcmint-cli src/abcmint-tx /usr/local/bin/
+cd ..
 
 # Calculate dbcache: 25% of total memory in MB, capped at 8192 MB
 total_mem=$(free -m | awk '/Mem:/ {print $2}')
@@ -211,26 +206,23 @@ if [ $dbcache -gt 8192 ]; then
     dbcache=8192
 fi
 
-# Set up Bitcoin Core config and datadir
-DATADIR="$HOME_DIR/.bitcoin"
+# Set up ABCMINT config and datadir
+DATADIR="$HOME_DIR/.abcmint"
 mkdir -p "$DATADIR"
 chown -R $service_user:$service_user "$DATADIR"
-cat << EOF > "$DATADIR/bitcoin.conf"
+cat << EOF > "$DATADIR/abcmint.conf"
 $rpcauth_line
 server=1
 $prune_line
-$assumevalid_line
 rpcallowip=127.0.0.1
 rpcbind=127.0.0.1
-zmqpubhashblock=tcp://127.0.0.1:28332
-blockmaxweight=3900000
+zmqpubhashblock=tcp://127.0.0.1:28882
 checkblocks=6
-blockreconstructionextratxn=1000
 dbcache=$dbcache
 EOF
 
-# Install CKPool-Solo
-git clone https://bitbucket.org/ckolivas/ckpool.git /opt/ckpool
+# Install ABCMINT-CKPOOL
+cp -r "c:/Users/mark/Desktop/abcmint-master-pool/ABCMINT-CKPOOL" /opt/ckpool
 chown -R $service_user:$service_user /opt/ckpool
 cd /opt/ckpool
 ./autogen.sh
@@ -244,36 +236,36 @@ cat << EOF > /etc/ckpool/ckpool.conf
 {
   $donation_line
   $btcsig_line
-  "btcd" : [
+  "abcmintd" : [
     {
-      "url" : "127.0.0.1:8332",
-      "auth" : "ckpooluser",
+      "url" : "127.0.0.1:8882",
+      "user" : "ckpooluser",
       "pass" : "$rpc_password",
       "notify" : true
     }
   ],
-  "startdiff" : 10000,
+  "startdiff" : 100,
   "logdir" : "/var/log/ckpool"
 }
 EOF
 mkdir -p /var/log/ckpool
 chown -R $service_user:$service_user /etc/ckpool /var/log/ckpool
 
-# Create wait script for bitcoind sync with block progress
-cat << EOF > /usr/local/bin/wait-for-bitcoind-sync.sh
+# Create wait script for abcmintd sync with block progress
+cat << EOF > /usr/local/bin/wait-for-abcmintd-sync.sh
 #!/bin/bash
 
-echo "Starting wait for bitcoind sync at \$(date)"
-echo "Using config file: $DATADIR/bitcoin.conf"
+echo "Starting wait for abcmintd sync at \$(date)"
+echo "Using config file: $DATADIR/abcmint.conf"
 while true; do
-    if ! bitcoin-cli -conf="$DATADIR/bitcoin.conf" getblockchaininfo >/dev/null 2>&1; then
-        echo "Waiting for bitcoind to start... at \$(date)"
+    if ! abcmint-cli -conf="$DATADIR/abcmint.conf" getblockchaininfo >/dev/null 2>&1; then
+        echo "Waiting for abcmintd to start... at \$(date)"
         sleep 60
         continue
     fi
-    info=\$(bitcoin-cli -conf="$DATADIR/bitcoin.conf" getblockchaininfo 2>/dev/null)
+    info=\$(abcmint-cli -conf="$DATADIR/abcmint.conf" getblockchaininfo 2>/dev/null)
     if [ \$? -ne 0 ]; then
-        echo "Error querying bitcoind: RPC failure at \$(date)"
+        echo "Error querying abcmintd: RPC failure at \$(date)"
         sleep 60
         continue
     fi
@@ -281,7 +273,7 @@ while true; do
     blocks=\$(echo "\$info" | jq '.blocks' 2>/dev/null)
     headers=\$(echo "\$info" | jq '.headers' 2>/dev/null)
     if [ -z "\$synced" ] || [ -z "\$blocks" ] || [ -z "\$headers" ]; then
-        echo "Error parsing bitcoind info at \$(date)"
+        echo "Error parsing abcmintd info at \$(date)"
         sleep 60
         continue
     fi
@@ -293,23 +285,23 @@ while true; do
         progress=\$(echo "scale=2; \$blocks * 100 / \$headers" | bc)
         echo "Syncing: \$blocks/\$headers blocks (\${progress}%) at \$(date)"
     else
-        echo "Waiting for bitcoind to start syncing... at \$(date)"
+        echo "Waiting for abcmintd to start syncing... at \$(date)"
     fi
     sleep 60
 done
 EOF
-chmod +x /usr/local/bin/wait-for-bitcoind-sync.sh
-chown $service_user:$service_user /usr/local/bin/wait-for-bitcoind-sync.sh
+chmod +x /usr/local/bin/wait-for-abcmintd-sync.sh
+chown $service_user:$service_user /usr/local/bin/wait-for-abcmintd-sync.sh
 
 # Create systemd services
-cat << EOF > /etc/systemd/system/bitcoind.service
+cat << EOF > /etc/systemd/system/abcmintd.service
 [Unit]
-Description=Bitcoin Daemon
+Description=ABCMINT Daemon
 After=network.target
 
 [Service]
 User=$service_user
-ExecStart=/usr/local/bin/bitcoind -conf="$DATADIR/bitcoin.conf" -datadir="$DATADIR" -printtoconsole
+ExecStart=/usr/local/bin/abcmintd -conf="$DATADIR/abcmint.conf" -datadir="$DATADIR" -printtoconsole
 Restart=always
 
 [Install]
@@ -318,12 +310,12 @@ EOF
 
 cat << EOF > /etc/systemd/system/ckpool.service
 [Unit]
-Description=CKPool Solo
-After=bitcoind.service
+Description=ABCMINT-CKPool Solo
+After=abcmintd.service
 
 [Service]
 User=$service_user
-ExecStart=/bin/bash -c '/usr/local/bin/wait-for-bitcoind-sync.sh && exec /usr/local/bin/ckpool -B -q -c /etc/ckpool/ckpool.conf'
+ExecStart=/bin/bash -c '/usr/local/bin/wait-for-abcmintd-sync.sh && exec /usr/local/bin/ckpool -B -q -c /etc/ckpool/ckpool.conf'
 StandardOutput=journal
 StandardError=journal
 Restart=always
@@ -333,18 +325,18 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable bitcoind ckpool
-systemctl start bitcoind ckpool
+systemctl enable abcmintd ckpool
+systemctl start abcmintd ckpool
 
-echo "Installation complete! CKPool-Solo is set to start on port 3333 after blockchain sync."
-echo "Important: You cannot mine until the Bitcoin Core blockchain is fully synchronized, which may take days."
+echo "Installation complete! ABCMINT-CKPool is set to start on port 3333 after blockchain sync."
+echo "Important: You cannot mine until the ABCMINT blockchain is fully synchronized."
 echo "Check sync progress with:"
 echo "  - journalctl -u ckpool -f (block progress until CKPool starts)"
-echo "  - journalctl -u bitcoind -f (detailed sync logs)"
+echo "  - journalctl -u abcmintd -f (detailed sync logs)"
 echo "  - tail -f $DATADIR/debug.log (detailed sync logs)"
 echo "CKPool startup is delayed until sync completes (monitor with: journalctl -u ckpool -f)."
-echo "Connect miners using: stratum+tcp://[machine IP]:3333 with your Bitcoin address as username and 'x' as password. Replace [machine IP] with the IP address of this machine (use ifconfig or ip addr to find it)."
+echo "Connect miners using: stratum+tcp://[machine IP]:3333 with your ABCMINT address (starting with '8') as username and 'x' as password. Replace [machine IP] with the IP address of this machine (use ifconfig or ip addr to find it)."
 echo "Monitor logs:"
 echo "  - CKPool: tail -f /var/log/ckpool/ckpool.log (full logs) or journalctl -u ckpool -f (block progress, then reduced CKPool logs)"
-echo "  - Bitcoin Core: tail -f $DATADIR/debug.log or journalctl -u bitcoind -f"
-echo "Edit configs in $DATADIR/bitcoin.conf and /etc/ckpool/ckpool.conf if needed, then restart services with: systemctl restart bitcoind ckpool"
+echo "  - ABCMINT: tail -f $DATADIR/debug.log or journalctl -u abcmintd -f"
+echo "Edit configs in $DATADIR/abcmint.conf and /etc/ckpool/ckpool.conf if needed, then restart services with: systemctl restart abcmintd ckpool"
