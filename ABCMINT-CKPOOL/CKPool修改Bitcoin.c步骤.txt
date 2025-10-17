@@ -1,0 +1,114 @@
+1：修改Bitcoin.c文件
+// 修改gbt_req常量，适配ABCMINT的getblocktemplate调用
+static const char *gbt_req = "{\"method\": \"getblocktemplate\", \"params\": [{\"capabilities\": [\"coinbasetxn\", \"workid\", \"coinbase/append\"], \"rules\" : []}]}";
+
+// 修改validate_address函数，适配ABCMINT地址格式
+bool validate_address(connsock_t *cs, const char *address, bool *script, bool *segwit)
+{
+    // 保留原有JSON-RPC调用逻辑
+    // ...
+    
+    // 修改地址验证逻辑，ABCMINT地址可能有不同的前缀
+    if (address[0] == '1' || address[0] == '3' || address[0] == 'a') // 添加'a'前缀支持
+        *script = false;
+    // ...
+}
+具体步骤：
+# Bitcoin.c文件具体修改步骤
+## 步骤1：修改getblocktemplate请求
+需要修改第128行左右的 gbt_req 常量定义，移除segwit规则以适配ABCMINT：
+
+原始代码：static const char *gbt_req = "{\"method\": \"getblocktemplate\", \"params\": [{\"capabilities\": [\"coinbasetxn\", \"workid\", \"coinbase/append\"], \"rules\" : [\"segwit\"]}]}\n";
+修改为：
+static const char *gbt_req = "{\"method\": \"getblocktemplate\", \"params\": [{\"capabilities\": [\"coinbasetxn\", \"workid\", \"coinbase/append\"], \"rules\" : []}]}\n";## 步骤2：修改validate_address函数中的地址验证逻辑
+需要修改第75-80行左右的地址前缀验证逻辑，以支持ABCMINT地址格式：
+
+原始代码：
+if (address[0] == '3' || address[0] == '2')
+    *script = true;
+/* Now look to see this isn't a bech32: We can't support
+ * bech32 without knowing if it's a pubkey or a script */
+else if (address[0] != '1' && address[0] != 'm')
+    ret = false;
+修改为：
+if (address[0] == '3' || address[0] == '2')
+    *script = true;
+/* 修改地址前缀验证，支持ABCMINT地址（假设ABCMINT地址以'a'开头）*/
+else if (address[0] != '1' && address[0] != 'm' && address[0] != 'a')
+    ret = false;
+## 步骤3：修改check_required_rule函数中的规则支持
+需要修改第20-30行左右的规则检查函数，因为我们已经移除了segwit规则：
+
+原始代码：static char* understood_rules[] = {"segwit"};
+
+static bool check_required_rule(const char* rule)
+{
+	unsigned int i;
+
+	for (i = 0; i < sizeof(understood_rules) / sizeof(understood_rules[0]); i++) {
+		if (safecmp(understood_rules[i], rule) == 0)
+			return true;
+	}
+	return false;
+}
+修改为：
+/* ABCMINT不需要segwit规则支持，清空规则数组 */
+static char* understood_rules[] = {};
+
+static bool check_required_rule(const char* rule)
+{
+	unsigned int i;
+
+	for (i = 0; i < sizeof(understood_rules) / sizeof(understood_rules[0]); i++) {
+		if (safecmp(understood_rules[i], rule) == 0)
+			return true;
+	}
+	return false;
+}
+## 步骤4：修改gen_gbtbase函数中的规则处理逻辑
+需要修改第142-150行左右的规则处理逻辑，以避免ABCMINT不支持的规则检查导致错误：
+
+原始代码：rules_array = json_object_get(res_val, "rules");
+if (rules_array) {
+	int rule_count =  json_array_size(rules_array);
+
+	for (i = 0; i < rule_count; i++) {
+		rule = json_string_value(json_array_get(rules_array, i));
+		if (rule && *rule++ == '!' && !check_required_rule(rule)) {
+			LOGERR("Required rule not understood: %s", rule);
+			goto out;
+		}
+	}
+}
+修改为：
+rules_array = json_object_get(res_val, "rules");
+if (rules_array) {
+	int rule_count =  json_array_size(rules_array);
+
+	for (i = 0; i < rule_count; i++) {
+		rule = json_string_value(json_array_get(rules_array, i));
+		/* ABCMINT修改：跳过规则检查，避免因不支持的规则导致错误 */
+		if (rule && *rule++ == '!') {
+			LOGDEBUG("Skipping required rule check for ABCMINT: %s", rule);
+			// 不再因为规则不理解而失败
+			// goto out;
+		}
+	}
+}
+## 步骤5：修改区块提交逻辑
+需要检查submit_block函数中的区块提交逻辑，确保与ABCMINT的响应格式兼容。这部分在文件的第340行左右：
+
+确保以下代码保留但可能需要调整错误处理：
+if (!json_is_null(res_val)) {
+	res_ret = json_string_value(res_val);
+	if (res_ret && strlen(res_ret)) {
+		LOGWARNING("SUBMIT BLOCK RETURNED: %s", res_ret);
+		/* Consider duplicate response as an accepted block */
+		if (safecmp(res_ret, "duplicate"))
+			goto out;
+	} else {
+		LOGWARNING("SUBMIT BLOCK GOT NO RESPONSE!");
+		goto out;
+	}
+}
+通过以上修改，Bitcoin.c文件将能够更好地适配ABCMINT的区块链特性，包括移除segwit支持、调整地址验证规则、跳过不必要的规则检查等。这些修改是将CKPool适配为ABCMINT矿池的第一步关键修改。

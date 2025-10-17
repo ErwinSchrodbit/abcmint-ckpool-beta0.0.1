@@ -1,0 +1,28 @@
+# 服务器设置
+server=1
+daemon=1
+listen=1
+txindex=1
+discover=1
+dnsseed=1
+upnp=1
+ipv6=1
+# RPC 配置
+rpcuser=abcmint
+rpcpassword=#输入你的RPC服务的密码(yourpassword)
+rpcallowip=127.0.0.1#本地回环地址
+rpcallowip=#输入允许外部调用的RPC服务的ip地址(RPCserver IP)
+rpcport=8882
+rpcbind=#更换为RPC服务器的ip地址(RPCserver IP)
+# 节点设置
+port=8888
+maxconnections=200
+# 数据目录（可选，默认在~/.abc）
+# datadir=/.abc/
+# 高级安全选项
+rpcworkqueue=100
+rpcthreads=8
+# 高级安全选项
+rpcwhitelist=getblockcount,getdifficulty,getconnectioncount,getinfo,getblockhash,getblock,getrawtransaction,getnetworkhashps,getmininginfo,getblockchaininfo,getpeerinfo
+rpcblacklist=stop,backupwallet,dumpkey <abcmintaddress>,getgenerate,setgenerate true
+# 其他可选设置

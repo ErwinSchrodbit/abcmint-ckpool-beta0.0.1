@@ -1,0 +1,136 @@
+ABCMINT本地独立挖矿
+
+---
+
+一体化独立挖矿快速入门：
+
+# 注意：安装脚本需要修改以适配abcmint
+# sudo scripts/install-ckpool-solo.sh
+
+这将需要下载ABCMINT-CKPOOL源代码、abcmint守护进程二进制文件，构建ABCMINT-CKPOOL并配置为独立挖矿模式。请按照提示操作或直接按Enter键使用默认设置。
+
+应该适用于任何基于.deb或.rpm的Linux发行版（ubuntu、debian、fedora、centos、rhel）来下载所需的软件包。将两者都作为当前用户安装为systemd服务，但可以为两者配置一个新的ckpool用户。建议使用完整区块链并有足够的存储空间。在abcmint守护进程完全同步区块链之前，您将无法向其挖矿。
+
+您将获得启用向ckpool作者捐款的选项，以及添加到任何已解决区块的自定义签名。
+
+---
+
+自行安装说明（不包含构建说明）
+
+从abcmint核心获取RPC（远程过程调用）密码，以允许矿池与其通信。您将需要abcmint核心源代码。
+
+在abcmint源代码目录中输入以下命令：
+share/rpcauth/rpcauth.py ckpool
+
+这将给您类似以下的消息：
+
+要附加到abcmint.conf的字符串：
+rpcauth=ckpool:c6f55b4a74b8fcbca4e8b2be22d7d53b$e2ca5e642d7ef4f43ab2524964dc6b3625ccfde09a97866c5b97c40622192149
+您的密码：
+sI7jIjC61U9ZYTT29GnBpm0Rg1qQV9w_TXOfBF1vOM8
+
+编辑abcmint.conf，启用RPC（远程过程调用）并添加上面的rpcauth行。以下配置将允许ABCMINT-CKPOOL与运行在相同硬件上的abcmint守护进程通信：
+
+server=1
+rpcauth=ckpool:c6f55b4a74b8fcbca4e8b2be22d7d53b$e2ca5e642d7ef4f43ab2524964dc6b3625ccfde09a97866c5b97c40622192149
+rpcallowip=127.0.0.1
+rpcbind=127.0.0.1
+zmqpubhashblock=tcp://127.0.0.1:28882
+
+确保使用您运行rpcauth命令时获得的rpcauth行。
+
+创建或修改ABCMINT-CKPOOL配置文件（如ckpool.conf），包括最基本的必要条目。确保使用您在步骤1中获得的密码。
+
+{"abcmintd" :  [
+        {
+        "url" : "127.0.0.1:8882",
+        "auth" : "ckpool",
+        "pass" : "sI7jIjC61U9ZYTT29GnBpm0Rg1qQV9w_TXOfBF1vOM8",
+        "notify" : true
+        }
+]}
+
+从源代码目录启动ABCMINT-CKPOOL（仅当配置文件名称不同于ckpool.conf或放置在其他位置时才需要指向配置文件），以独立模式运行：
+
+src/ckpool -B
+
+将您的挖矿硬件上的矿池条目指向ABCMINT-CKPOOL运行所在的本地IP地址（端口3333），将用户名设置为您希望挖矿到的abcmint地址（以'8'开头），并在密码字段中输入任何内容（如"x"）。例如，如果ABCMINT-CKPOOL的本地IP地址是192.168.1.100：
+
+url: 192.168.1.100:3333
+username: 8PKN98VN2z5gwSGZvGKS2bj8aADZBkyhkZ
+password: x
+
+任何有效的abcmint地址（以'8'开头）都可以使用
+
+（希望获得）收益。
+
+---
+
+可选更改
+
+对于本地独立挖矿操作，大多数ABCMINT-CKPOOL配置选项不需要修改，并且某些配置选项在独立模式下不会使用。源代码中包含的ckpool.conf具有所有可用的配置选项，不建议按原样使用。以下选项可能对本地独立挖矿操作有用。
+
+挖矿到一个固定地址。如果您只计划挖矿到一个固定地址，而不必担心在每台挖矿硬件上设置用户名，您可以设置一个abcmint地址进行挖矿，如下所示：
+
+"abcmintaddress" : "84BMjogz69qe8hk9thyzbmR5pg34mVKB1e",
+
+然后，您必须在启动ABCMINT-CKPOOL时不使用-B选项。这将挖矿到地址84BMjogz69qe8hk9thyzbmR5pg34mVKB1e，请将其修改为您希望挖矿到的abcmint地址。
+
+您可以在矿池上设置起始难度（建议默认值为100，以适应rainbow18算法），如下所示：
+
+"startdiff" : 100,
+
+您可以定义一个签名，将其挖矿到您解决的任何区块中，如下所示：
+
+"abcmintsig" : "/mined by abcmint-ckpool/"
+
+您可能希望启用向ckpool作者捐款，以找到的任何区块的百分比（如0.5%），如下所示：
+
+"donation" : 0.5,
+
+捐款是完全可选的，默认情况下是禁用的，但非常感谢。0.5%将是一个合理的值。
+
+默认情况下，ABCMINT-CKPOOL绑定到运行它的硬件上的每个本地IP地址，但您可以将其限制为某些地址或更改它运行的端口，如下所示：
+
+"serverurl" : [
+	"127.0.0.1:3333",
+	"192.168.1.100:3334"
+],
+
+此外，如果您指定4000以上的端口，它将成为一个"高难度"端口，将最小难度设置为100万。
+
+您可以指定不同的配置文件，如下所示：
+
+src/ckpool -B -c myconfig.conf
+
+或者，您可以以不同的名称启动ABCMINT-CKPOOL，它将查找相关的配置
+
+src/ckpool -B -n local
+
+这将查找名为local.conf的配置文件
+
+---
+
+注意事项
+
+Json对其字段处理非常严格，尽管空格是灵活的。最常见的错误是在最后一个字段后放置逗号。
+
+如果您空间不足，可以使用修剪过的区块链进行挖矿，但不建议这样做，因为它可能会增加更多延迟。
+
+默认情况下，abcmint核心未针对挖矿进行优化，除非进行修改，否则本地独立挖矿应仅作为备份操作，除非您有技能、硬件和数据中心级别的连接以最小化延迟。
+
+ABCMINT-CKPOOL已适配rainbow18后量子加密算法，区块版本被强制设置为101（ABCMINT_BLOCK_VERSION）。
+
+版本掩码设置为0xFFFFFF00，允许矿工修改低8位。
+
+ABCMINT-CKPOOL已禁用Segwit功能，以适应abcmint网络的要求。
+
+abcmint地址必须以'8'开头才被视为有效地址。
+
+ABCMINT-CKPOOL通过validateaddress RPC方法验证地址有效性，并确认其以'8'开头。
+
+ABCMINT-CKPOOL与abcmintd的通信使用8882端口（主网）或18882端口（测试网）。
+
+ZMQ通知使用28882端口进行区块广播。
+
+祝您好运。
