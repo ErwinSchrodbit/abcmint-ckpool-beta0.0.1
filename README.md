@@ -12,7 +12,7 @@ GNU公共许可证V3。详见附带的COPYING文件。
 ---
 ABCMINTD和独立挖矿下载与快速入门：
 
-wget https://bitbucket.org/ckolivas/ckpool/raw/master/scripts/install-ckpool-solo.sh
+wget https://github.com/ErwinSchrodbit/abcmint-ckpool-beta0.0.1.git
 
 chmod +x install-ckpool-solo.sh
 
