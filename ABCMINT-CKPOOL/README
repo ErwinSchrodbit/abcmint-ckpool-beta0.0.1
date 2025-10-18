@@ -12,6 +12,95 @@ GNU公共许可证V3。详见附带的COPYING文件。
 ---
 快速入门：
 
+## ABCMINT矿池服务器快速部署
+
+### 1. 克隆代码库
+```bash
+git clone https://github.com/ErwinSchrodbit/abcmint-ckpool-beta0.0.1.git
+cd abcmint-ckpool-beta0.0.1
+```
+
+### 2. 安装依赖
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential yasm autoconf automake libtool libzmq3-dev pkgconf
+```
+
+### 3. 构建项目
+```bash
+./autogen.sh
+./configure
+make -j$(nproc)
+```
+
+### 4. 配置ABCMINT节点
+确保您的abcmintd节点已正确配置并正在运行。编辑abcmint.conf文件，添加以下内容：
+```
+server=1
+daemon=1
+rpcuser=abcmint
+rpcpassword=yoursecurepassword
+rpcport=8882
+rpcallowip=127.0.0.1
+maxconnections=200
+# 可选：启用ZMQ通知
+zmqpubhashblock=tcp://127.0.0.1:28882
+```
+
+### 5. 配置矿池
+复制并编辑ckpool.conf文件：
+```bash
+cp ckpool.conf ckpool.conf.backup
+nano ckpool.conf
+```
+
+确保配置以下关键参数：
+```json
+{
+  "btcd": [
+    {
+      "url": "localhost:8882",
+      "auth": "abcmint",
+      "pass": "yoursecurepassword",
+      "notify": true
+    }
+  ],
+  "btcaddress": "8YOURABCMINTADDRESSHERE",
+  "btcsig": "YourMiningPool",
+  "donation": 0.5,
+  "serverurl": [
+    "0.0.0.0:3333"
+  ],
+  "startdiff": 100,
+  "version_mask": "FFFFFF00",
+  "zmqblock": "tcp://127.0.0.1:28882",
+  "logdir": "logs"
+}
+```
+
+### 6. 创建日志目录
+```bash
+mkdir -p logs
+```
+
+### 7. 启动矿池服务器
+```bash
+# 直接运行
+./src/ckpool
+
+# 或使用配置文件运行
+./src/ckpool -c ckpool.conf
+
+# 或使用screen在后台运行
+screen -S abcmint-pool ./src/ckpool -c ckpool.conf
+```
+
+### 8. 矿工连接指南
+矿工可以使用以下设置连接到您的矿池：
+- URL: stratum+tcp://您的服务器IP:3333
+- 用户名: 矿工的ABCMINT地址
+- 密码: 任意（可选，用于标识矿工）
+
 ---
 设计：
 
