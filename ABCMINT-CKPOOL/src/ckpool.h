@@ -209,8 +209,7 @@ struct ckpool_instance { // ckpool实例结构体
 	/* 是否运行作为代理 */
 	bool proxy; // 代理模式标志
 
-	/* 是否运行在abcmint solo模式 */
-	bool btcsolo; // abcmint solo 模式标志
+	// Solo挖矿模式已删除 for 只保留矿池模式操作
 
 	/* 是否运行在用户代理模式 */
 	bool userproxy; // 用户代理模式标志

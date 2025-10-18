@@ -1508,7 +1508,6 @@ static void prepare_child(ckpool_t *ckp, proc_instance_t *pi, void *process, cha
 }
 
 static struct option long_options[] = {
-	{"btcsolo",	no_argument,		0,	'B'},
 	{"config",	required_argument,	0,	'c'},
 	{"daemonise",	no_argument,		0,	'D'},
 	{"group",	required_argument,	0,	'g'},
@@ -1573,13 +1572,8 @@ int main(int argc, char **argv)
 	if (!strcmp(appname, "ckproxy"))
 		ckp.proxy = true;
 
-	while ((c = getopt_long(argc, argv, "Bc:Dd:g:HhkLl:Nn:PpqRS:s:tu", long_options, &i)) != -1) {
+	while ((c = getopt_long(argc, argv, "c:Dd:g:HhkLl:Nn:PpqRS:s:tu", long_options, &i)) != -1) {
 		switch (c) {
-			case 'B':
-				if (ckp.proxy)
-					quit(1, "Cannot set both proxy and btcsolo mode");
-				ckp.btcsolo = true;
-				break;
 			case 'c':
 				ckp.config = optarg;
 				break;
@@ -1732,7 +1726,7 @@ int main(int argc, char **argv)
 	ckp.tndonaddress = "8XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 	ckp.rtdonaddress = "8XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
-	if (!ckp.btcaddress && !ckp.btcsolo && !ckp.proxy)
+	if (!ckp.btcaddress && !ckp.proxy)
 		quit(0, "非单矿工挖矿必须在配置中设置abcmint地址，正在中止！");
 	if (!ckp.blockpoll)
 		ckp.blockpoll = 100; // 轮询abcmint守护进程的频率(毫秒)

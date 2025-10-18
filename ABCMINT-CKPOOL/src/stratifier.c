@@ -641,12 +641,12 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 
 	wb->coinb3len += 4; // Blank lock
 
-	if (!ckp->btcsolo) {
+	{
 		int coinbase_len, offset = 0;
 		char *coinbase, *cb;
 		json_t *val = NULL;
 
-		/* Append the generation address and coinb3 in !solo mode */
+		/* Append the generation address and coinb3 for pool mode */
 		wb->coinb2bin[wb->coinb2len++] = sdata->txnlen;
 		memcpy(wb->coinb2bin + wb->coinb2len, sdata->txnbin, sdata->txnlen);
 		wb->coinb2len += sdata->txnlen;
@@ -769,8 +769,6 @@ static void clear_userwb(sdata_t *sdata, int64_t id)
 
 static void clear_workbase(ckpool_t *ckp, workbase_t *wb)
 {
-	if (ckp->btcsolo)
-		clear_userwb(ckp->sdata, wb->id);
 	free(wb->flags);
 	free(wb->txn_data);
 	free(wb->txn_hashes);
@@ -3881,20 +3879,7 @@ char *stratifier_stats(ckpool_t *ckp, void *data)
 	json_set_object(val, "remote_workbases", subval);
 
 	ck_rlock(&sdata->instance_lock);
-	if (ckp->btcsolo) {
-		user_instance_t *user, *tmpuser;
-		int subobjects;
-
-		objects = 0;
-		memsize = 0;
-		HASH_ITER(hh, sdata->user_instances, user, tmpuser) {
-			subobjects = HASH_COUNT(user->userwbs);
-			objects += subobjects;
-			memsize += SAFE_HASH_OVERHEAD(user->userwbs) + sizeof(struct userwb) * subobjects;
-		}
-		generated = sdata->userwbs_generated;
-		JSON_CPACK(subval, "{si,si,sI}", "count", objects, "memory", memsize, "generated", generated);
-		json_set_object(val, "userwbs", subval);
+	// Solo mining mode removed, skipping user workbase statistics
 	}
 
 	objects = HASH_COUNT(sdata->user_instances);
@@ -5526,36 +5511,17 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			goto out;
 		}
 	}
-	if (!ckp->btcsolo || client->user_instance->btcaddress)
+	// Solo mining mode removed, always checking user_instance->btcaddress
+	if (client->user_instance->btcaddress)
 		ret = true;
 
 	/* We do the preauth etc. in remote mode, and leave final auth to
 	 * upstream pool to complete. */
-	if (!ckp->remote || ckp->btcsolo)
+	// Solo mining mode removed, checking only remote flag
+	if (!ckp->remote)
 		client_auth(ckp, client, user, ret);
 out:
-	if (ckp->btcsolo && ret && !client->remote) {
-		sdata_t *sdata = ckp->sdata;
-		workbase_t *wb;
-
-		/* To avoid grabbing recursive lock */
-		ck_wlock(&sdata->workbase_lock);
-		wb = sdata->current_workbase;
-		wb->readcount++;
-		ck_wunlock(&sdata->workbase_lock);
-
-		ck_wlock(&sdata->instance_lock);
-		__generate_userwb(sdata, wb, user);
-		ck_wunlock(&sdata->instance_lock);
-
-		update_solo_client(sdata, wb, client->id, user);
-
-		ck_wlock(&sdata->workbase_lock);
-		wb->readcount--;
-		ck_wunlock(&sdata->workbase_lock);
-
-		stratum_send_diff(sdata, client);
-	}
+	// Solo mining mode removed, skipping solo-specific code
 	return json_boolean(ret);
 }
 
@@ -5820,7 +5786,7 @@ static inline uchar *__user_coinb2(const stratum_instance_t *client, const workb
 	struct userwb *userwb;
 	int64_t id;
 
-	if (!client->ckp->btcsolo)
+	// Solo mining mode removed, always proceed as pool mode
 		goto out_nouserwb;
 
 	id = wb->id;
@@ -6443,7 +6409,7 @@ static void update_client(const stratum_instance_t *client, const int64_t client
 {
 	sdata_t *sdata = client->sdata;
 
-	if (!client->ckp->btcsolo)
+	// Solo mining mode removed, always proceed as pool mode
 		stratum_send_update(sdata, client_id, true);
 	stratum_send_diff(sdata, client);
 }
@@ -6500,7 +6466,7 @@ static void init_client(const stratum_instance_t *client, const int64_t client_i
 	sdata_t *sdata = client->sdata;
 
 	stratum_send_diff(sdata, client);
-	if (!client->ckp->btcsolo)
+	// Solo mining mode removed, always proceed as pool mode
 		stratum_send_update(sdata, client_id, true);
 }
 
@@ -7046,8 +7012,7 @@ static void parse_remote_auth(ckpool_t *ckp, sdata_t *sdata, json_t *val, stratu
 	json_params_t *jp;
 	int64_t client_id;
 
-	if (ckp->btcsolo) {
-		LOGWARNING("Got remote auth request in btcsolo mode, ignoring!");
+	// Solo mining mode removed, remote auth requests handled normally
 		return;
 	}
 	json_get_int64(&client_id, val, "clientid");
@@ -7697,7 +7662,7 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 	if (ret) {
 		/* So far okay in remote mode, remainder to be done by upstream
 		 * pool */
-		if (ckp->remote && !ckp->btcsolo) {
+		if (ckp->remote) {
 			upstream_auth(ckp, client, jp);
 			goto out;
 		}
