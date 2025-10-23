@@ -1,6 +1,6 @@
-ABCMINT-CKPOOL + CKPROXY + libckpool 由 Erwin Schrodbit 开发，适配abcmint区块链网络
+ABCMINT-CKPOOL + CKPROXY + libckpool 由 Erwin Schrodbit 开发，适配Raqcoin区块链网络
 
-超低开销、高度可扩展的多进程、多线程模块化abcmint挖矿池、代理、透传和C语言库，适用于Linux系统。
+超低开销、高度可扩展的多进程、多线程模块化Raqcoin挖矿池、代理、透传和C语言库，适用于Linux系统。
 ABCMINT-CKPOOL是根据GPLv3许可证免费提供的代码，但其开发主要由委托资金支付，默认情况下，在池模式下，已解决区块的0.5%会贡献给开发团队。
 如果你在池上运行它，请考虑在代码中保留这一贡献，或者如果你使用此代码，请向AUTHORS中列出的作者捐款，以资助进一步的开发。
 
